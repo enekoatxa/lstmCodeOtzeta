@@ -27,7 +27,7 @@ n_features = 0 # number of features of each input vector (assigned later in code
 ''' Don't use
 class CustomCallback(keras.callbacks.Callback):
     def on_epoch_begin(self, epoch, logs=None):
-        print(self.model.optimizer.learning_rate)
+        print(f"{self.model.optimizer.learning_rate}")
         testDifferences("models/callbackModel.keras", 0, self.model)
 
 def my_loss_fn(y_true, y_pred):
@@ -150,7 +150,7 @@ def testDifferences(modelName, jump, preparedModel):
     # prediction loop
     steps = 500
     for step in range(0, steps-1):
-        print(step)
+        print(f"{step}")
         x_input = x_input.reshape(n_steps, n_features)
         x_input = np.append(x_input, newX, axis=0)
         x_input = np.delete(x_input, 0, axis=0)
@@ -197,7 +197,7 @@ def testDifferencesMultiple(modelName):
 
     finalOutput = np.append(x_input, newX, axis=0)
     finalOutput = scaler.inverse_transform(finalOutput)
-    print(finalOutput.shape)
+    print(f"{finalOutput.shape}")
     with open("resultBvhs/" + modelName.split(".")[0].split("/")[1] + ".bvh", "w") as f:
         for line in finalOutput:
             f.write(str(line.tolist()).replace("[", "").replace("]", "").replace(",", ""))
@@ -258,7 +258,7 @@ def testMultiple(modelName):
     newX = newX.reshape((n_steps_out, n_features))
     finalOutput = np.append(x_input, newX, axis=0)
     finalOutput = scaler.inverse_transform(finalOutput)
-    print(finalOutput.shape)
+    print(f"{finalOutput.shape}")
     with open("resultBvhs/" + modelName.split(".")[0].split("/")[1] + ".bvh", "w") as f:
         for line in finalOutput:
             f.write(str(line.tolist()).replace("[", "").replace("]", "").replace(",", ""))
@@ -354,13 +354,13 @@ def checkDatamodule():
     datamodule = lstmDataset(root="/home/bee/Desktop/idle animation generator", isTiny = False, batchSize= 56, partition="Train", datasetName = "silenceDataset3sec", 
                              sequenceSize = n_steps, trim=False, specificSize=10, verbose=True, outSequenceSize=n_steps_out, removeHandsAndFace = True, loadDifferences=True)
     
-    print(len(datamodule[0][0][0]))
-    print(datamodule[0][0][0])
-    print(datamodule[0][0][1])
-    print(datamodule[0][0][2])
-    print(datamodule[0][0][3])
-    print(datamodule[0][0][4])
-    print(len(datamodule[0][1][0]))
+    print(f"{len(datamodule[0][0][0])}")
+    print(f"{datamodule[0][0][0]}")
+    print(f"{datamodule[0][0][1]}")
+    print(f"{datamodule[0][0][2]}")
+    print(f"{datamodule[0][0][3]}")
+    print(f"{datamodule[0][0][4]}")
+    print(f"{len(datamodule[0][1][0])}")
 
 # method to check if a specific model is created correctly (prints out the summary of a model I'm testing)
 def checkNetwork():
@@ -375,9 +375,9 @@ def checkNetwork():
 def visualizeWeights():
     model = load_model("models/multipleLSTMNoLimbsOneFrame.keras")
     layer = model.layers[0]
-    print(layer)
+    print(f"{layer}")
     weights = layer.get_weights()
-    print(weights)
+    print(f"{weights}")
 
 def prepareScalerForJump(jump, extraInfo, datasetName = "silenceDataset3sec"):
     onlyPos = extraInfo=="onlyPositions"

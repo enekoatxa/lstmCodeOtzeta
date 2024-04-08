@@ -1,6 +1,6 @@
 from scipy.spatial.transform import Rotation as R 
 import numpy as np
-
+import timeit
 
 ##################################################################
 # global variables for glueing and separating quaternion vectors #
@@ -97,6 +97,7 @@ def glueVectors(rotationsVector, positionsVector, path="/home/bee/Desktop/idle a
         wholeVector[positionIndexes[index]] = positionsVector[index]
     return wholeVector
 
+# this is faster than list comprehensions (tested with timeit)
 def concatenateVectorsSimple(rotationsVector, positionsVector):
     wholeVector = []
     for rotation in rotationsVector:

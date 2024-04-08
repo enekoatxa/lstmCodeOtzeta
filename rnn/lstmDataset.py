@@ -5,7 +5,7 @@ import bvhLoader
 import numpy as np
 
 class lstmDataset(keras.utils.PyDataset):
-    def __init__(self, root, datasetName = "silenceDataset3sec", partition = "Validation", isTiny = False, specificSize = -1, trim = False, sequenceSize = -1, verbose = False, specificTrim = -1, batchSize = 56, onlyPositions = False, onlyRotations = False, outSequenceSize=1, removeHandsAndFace = False, scaler = None, loadDifferences = False, jump = 0, useQuaternions = True, **kwargs):
+    def __init__(self, root, datasetName = "silenceDataset3sec", partition = "Validation", isTiny = False, specificSize = -1, trim = False, sequenceSize = -1, verbose = False, specificTrim = -1, batchSize = 56, onlyPositions = False, onlyRotations = False, outSequenceSize=1, removeHandsAndFace = False, scaler = None, loadDifferences = False, jump = 0, useQuaternions = False, **kwargs):
         super().__init__(**kwargs)
         """
         :param datasetName: name of the dataset that we want to load.

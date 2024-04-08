@@ -21,17 +21,17 @@ def calculatePositionIndexesFromHeader(path):
     currentIndex = 0
     positionIndexes = []
     rotationIndexes = []
-    f = open(path, "r")
-    line = f.readline()
-    while line.split(" ")[0]!= "Frame":
-        for element in line.split(" "):
-            if("position" in element):
-                positionIndexes.append(currentIndex)
-                currentIndex +=1
-            if("rotation" in element):
-                rotationIndexes.append(currentIndex)
-                currentIndex +=1
+    with open(path, "r") as f:
         line = f.readline()
+        while line.split(" ")[0]!= "Frame":
+            for element in line.split(" "):
+                if("position" in element):
+                    positionIndexes.append(currentIndex)
+                    currentIndex +=1
+                if("rotation" in element):
+                    rotationIndexes.append(currentIndex)
+                    currentIndex +=1
+            line = f.readline()
     return positionIndexes, rotationIndexes
 
 # reads a bvh file and separates the data from the header. Returns the header if needed, else returns only the data in a list. Can also return just the header.
@@ -40,33 +40,33 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
                   onlyPositions = False, onlyRotations = False, removeHandsAndFace = False, jump = 0, useQuaternions=False):
     ### HEADER ###
     # read and save the header in a variable
-    f = open(path, "r")
-    header = ""
-    line = f.readline()
-    # read the header until the line "Frame Time: 0.0333333"
-    while line.split(" ")[0]!= "Frame":
-        header += line
+    with open(path, "r") as f:
+        header = ""
         line = f.readline()
-    # add the last header line manually
-    # header += line.split("\n")[0]
-    header += line
+        # read the header until the line "Frame Time: 0.0333333"
+        while line.split(" ")[0]!= "Frame":
+            header += line
+            line = f.readline()
+        # add the last header line manually
+        # header += line.split("\n")[0]
+        header += line
 
-    ### DATA ###
-    # read all the rotation data to a list
-    data = []
-    line = f.readline().replace("\n", "")
-    counter = 0
-    while True:
-        data.append(line.split(" ")[:-1])
+        ### DATA ###
+        # read all the rotation data to a list
+        data = []
         line = f.readline().replace("\n", "")
-        counter+=1
-        # jumping lines
-        if(jump>0):
-            for j in range(0, jump):
-                line = f.readline()
-                if not line:break
-        if not line: break
-    data = [[np.float32(s) for s in sublist] for sublist in data]
+        counter = 0
+        while True:
+            data.append(line.split(" ")[:-1])
+            line = f.readline().replace("\n", "")
+            counter+=1
+            # jumping lines
+            if(jump>0):
+                for j in range(0, jump):
+                    line = f.readline()
+                    if not line:break
+            if not line: break
+        data = [[np.float32(s) for s in sublist] for sublist in data]
 
     # separate the data into rotations and positions
     rotationData = []
@@ -134,7 +134,7 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
                 loadDifferences = False, jump = 0, useQuaternions = False):
     allData = []
     allIds = []
-    id = 0
+    idPerson = 0
     finalTrimSize = 999999999999999
     if partition=="All":
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/"
@@ -144,11 +144,11 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/genea2023_val"
     for root, dirs, files in os.walk(path):
         for filename in files:
-            if specificSize!=-1 and id>=specificSize:
+            if specificSize!=-1 and idPerson>=specificSize:
                     break
             if verbose:
-                print("Loading file: " + str(filename))
-            if(str(filename).split(".")[-1]=="bvh"):
+                print(f"Loading file: {filename}")
+            if(os.path.splitext(filename).lower()==".bvh"):
 
                 bvhData, bvhSize = loadBvhToList(os.path.join(root, filename), onlyPositions=onlyPositions, onlyRotations=onlyRotations, removeHandsAndFace=removeHandsAndFace, jump=jump, useQuaternions=useQuaternions)
                 # if the trim flag is on, calculate the size of the smallest bvh
@@ -156,21 +156,21 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
                     if finalTrimSize > bvhSize:
                         finalTrimSize = bvhSize
                 allData.append(bvhData)
-                allIds.append(id) # TODO: IDs should not be numbers. Change to one-hot encoding or other
+                allIds.append(idPerson) # TODO: IDs should not be numbers. Change to one-hot encoding or other
                     # return allData, np.asarray(allIds)
-                id+=1
+                idPerson+=1
 
     # after loading the entire dataset, if trim is activated, trim all sequences to the smallest size
     if trim:
         if specificTrim > -1 and specificTrim<=finalTrimSize:
             if verbose:
-                print("Trimming to size: " + str(specificTrim))
+                print(f"Trimming to size: {specificTrim}")
             # trim
             for person in range(0, len(allData)):
                 allData[person] = allData[person][0:specificTrim].copy()
         else:
             if verbose:
-                print("Trimming to size: " + str(finalTrimSize))
+                print(f"Trimming to size: {finalTrimSize}")
             for person in range(0, len(allData)):
                 allData[person] = allData[person][0:finalTrimSize].copy()
 
@@ -214,7 +214,7 @@ def loadDatasetInBulk(datasetName, partition = "All", specificSize=-1, verbose =
     for root, dirs, files in os.walk(path):
         for filename in files:
             if verbose:
-                print("Loading file: " + str(filename))
+                print(f"Loading file: {filename}")
             vectors = loadBvhToList(os.path.join(root, filename), returnCounter=False, removeHandsAndFace=removeHandsAndFace, jump=jump)
             # instead of appending lists representing people, append the vectors individually
             for vector in vectors:
@@ -299,12 +299,12 @@ def createAndFitStandardScalerForDifferences(datasetName, partition = "All", spe
 def loadSequenceDataset(datasetName, partition = "All", specificSize = -1, verbose = False, sequenceSize = 10, trim = False, specificTrim = -1, onlyPositions = False, onlyRotations = False, outSequenceSize=1, removeHandsAndFace = False, scaler = None, loadDifferences = False, jump = 0):
     # load the dataset in one list and the ids in the second one
     dataset, firstPersonFrames, ids = loadDataset(datasetName=datasetName, partition=partition, specificSize=specificSize, verbose=verbose, trim=trim, specificTrim=specificTrim, onlyPositions=onlyPositions, onlyRotations=onlyRotations, removeHandsAndFace=removeHandsAndFace, loadDifferences=loadDifferences, jump=jump)
-    print(len(dataset[0][0]))
+    print(f"{len(dataset[0][0])}")
     # create the sequences and results
     datasetX, datasetY, sequencedIds = createSequenceFromFataset(dataset=dataset, ids=ids, sequenceSize=sequenceSize, outSequenceSize=outSequenceSize)
     # normalize the data
     if scaler != None:
-        print("scaling")
+        print("Scaling...")
         for index in range(0, len(datasetX)):
             datasetX[index] = scaler.transform(datasetX[index])
         for index in range(0, len(datasetY)):
@@ -334,8 +334,8 @@ def loadDatasetForVae(datasetName, partition = "All", specificSize = -1, verbose
     return datasetX'''
 
 if __name__ == "__main__":
-    x, y, id = loadSequenceDataset("silenceDataset3sec", partition="Train", specificSize=10, trim=False, sequenceSize=30, verbose=True)
-    print(np.shape(x))
-    print(np.shape(y))
-    print(np.shape(id))
-    print(id)
+    x, y, idPerson = loadSequenceDataset("silenceDataset3sec", partition="Train", specificSize=10, trim=False, sequenceSize=30, verbose=True)
+    print(f"{np.shape(x)}")
+    print(f"{np.shape(y)}")
+    print(f"{np.shape(idPerson)}")
+    print(f"{idPerson}")
