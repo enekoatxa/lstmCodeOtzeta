@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 import operator
 

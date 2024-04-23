@@ -19,7 +19,7 @@ from keras.constraints import Constraint
 
 import tensorflow as tf
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 from lstmDataset import lstmDataset
 from pickle import dump, load

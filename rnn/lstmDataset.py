@@ -1,11 +1,11 @@
 import keras
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 import numpy as np
 
 class lstmDataset(keras.utils.PyDataset):
-    def __init__(self, root, datasetName = "silenceDataset3sec", partition = "Validation", isTiny = False, specificSize = -1, trim = False, sequenceSize = -1, verbose = False, specificTrim = -1, batchSize = 56, onlyPositions = False, onlyRotations = False, outSequenceSize=1, removeHandsAndFace = False, scaler = None, loadDifferences = False, jump = 0, useQuaternions = False, **kwargs):
+    def __init__(self, root, datasetName = "silenceDataset3sec", partition = "Validation", isTiny = False, specificSize = -1, trim = False, sequenceSize = -1, verbose = False, specificTrim = -1, batchSize = 56, onlyPositions = False, onlyRotations = False, outSequenceSize=1, scaler = None, loadDifferences = False, jump = 0, useQuaternions = False, **kwargs):
         super().__init__(**kwargs)
         """
         :param datasetName: name of the dataset that we want to load.
@@ -20,8 +20,8 @@ class lstmDataset(keras.utils.PyDataset):
         
         x, firstPersonFrames, ids = bvhLoader.loadDataset(datasetName=datasetName, partition=partition, specificSize=specificSize, trim=trim,
                                                 verbose=verbose, specificTrim=specificTrim, onlyPositions=onlyPositions,
-                                                onlyRotations=onlyRotations, removeHandsAndFace=removeHandsAndFace, 
-                                                scaler=scaler, loadDifferences = loadDifferences, jump = jump, useQuaternions = useQuaternions)
+                                                onlyRotations=onlyRotations, scaler=scaler, loadDifferences = loadDifferences,
+                                                jump = jump, useQuaternions = useQuaternions)
 
         # isTiny
         if isTiny:
@@ -45,9 +45,12 @@ class lstmDataset(keras.utils.PyDataset):
         self.sequenceSize = sequenceSize
         self.outSequenceSize = outSequenceSize
         self.length = int(totalNumberOfSequences/self.batchSize)
-
+        self.vectorSize = len(x[0][0])
+        print(f"vectorsize: {self.vectorSize}")
         with open(1, "w", closefd=False) as f:
             print("dataloader length:" + str(self.length), file=f, flush=True)
+            if(self.length<0):
+                print("ERROR: YOU HAVE PUT THE SEQUENCE LENGTH BIGGER THAN THE SEQUENCES IN THE DATASET")
 
     def __getitem__(self, index):
         """
@@ -61,7 +64,7 @@ class lstmDataset(keras.utils.PyDataset):
         # metodoa oso korapilatsua da
         sequencesToReturn = []
         sequencedDatasetResults = []
-
+        sequencesLastFrame = []
         # first calculate fast from where we need to start: the person index and the frame index
         # the frame index will be the low limit (where we start the loading). Current index will be the same.
         # the person index is where the lowLimit falls. Example: index 1342 falls in person 67
@@ -89,10 +92,11 @@ class lstmDataset(keras.utils.PyDataset):
                         lastFrameProcessed = 0
                         break
                     # print("processing: " + str(frame) + ":: limits :: " + str(end_ix) + "|" + str(out_end_ix) + "||person: " + str(person))
-                    seq_x, seq_y = self.sequences[person][frame:end_ix], self.sequences[person][end_ix:out_end_ix]
+                    seq_x, seq_x_last, seq_y = self.sequences[person][frame:end_ix], self.sequences[person][end_ix-1:end_ix], self.sequences[person][end_ix:out_end_ix]
                     #reshape seq_y
                     # seq_y = np.squeeze(seq_y, axis=0) # TODO hau deskomentatu inferentzia normalerako
                     sequencesToReturn.append(seq_x.copy())
+                    sequencesLastFrame.append(seq_x_last.copy())
                     sequencedDatasetResults.append(seq_y.copy())
                 currentIndex += 1
 
@@ -105,10 +109,12 @@ class lstmDataset(keras.utils.PyDataset):
 
         # sometimes the method fails, i don't know why. If the return size is 0, I will return a blank example, not to break the method
         if(len(np.array(sequencesToReturn)) == 0):
-            sequencesToReturn = np.zeros((self.batchSize, self.sequenceSize, 192))
-            sequencedDatasetResults = np.zeros((self.batchSize, self.outSequenceSize, 192))
+            sequencesToReturn = np.zeros((self.batchSize, self.sequenceSize, self.vectorSize))
+            sequencesLastFrame = np.zeros((self.batchSize, self.sequenceSize, self.vectorSize))            
+            sequencedDatasetResults = np.zeros((self.batchSize, self.outSequenceSize, self.vectorSize))
             print("an example has been broken")
-        return np.array(sequencesToReturn), np.array(sequencedDatasetResults)
+
+        return (np.array(sequencesToReturn), np.array(sequencesLastFrame)), np.array(sequencedDatasetResults)
 
     def __len__(self):
         return self.length

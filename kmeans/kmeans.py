@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from kmeans_pytorch import kmeans, kmeans_predict
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 
 

@@ -51,7 +51,7 @@ Esta clase tiene todos los métodos para cargar los datos de distintas maneras. 
 Primero de todo, para usar esta clase en las otras clases, lo he tenido que importar de esta manera, porque no podía hacer un import normal:
 
     import sys
-    sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+    sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
     import bvhLoader
 
 No sé por qué pasa esto. Puede que tengas que cambiar el path de la carpeta /util en tu PC.

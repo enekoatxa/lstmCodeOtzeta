@@ -1,6 +1,6 @@
 import keras
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 import numpy as np
 

@@ -6,7 +6,7 @@ from torch.nn import functional as F
 from sequencesDataloader import sequencesDataloader
 import numpy as np
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 from torchsummary import summary
 

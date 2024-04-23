@@ -5,7 +5,7 @@
 import numpy as np
 import pandas as pd
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 
 # Gráficos

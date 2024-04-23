@@ -9,7 +9,7 @@ from torch.distributions import RelaxedOneHotCategorical, OneHotCategorical
 from vaeDataloader import vaeDataloader
 import numpy as np
 import sys
-sys.path.insert(1, '/home/bee/Desktop/idle animation generator/code/util')
+sys.path.insert(1, '/home/bee/Desktop/idle animation generator/codeNew/util')
 import bvhLoader
 # code forked from https://github.com/hugobb/discreteVAE
 
