@@ -22,7 +22,6 @@ class lstmDataset(keras.utils.PyDataset):
                                                 verbose=verbose, specificTrim=specificTrim, onlyPositions=onlyPositions,
                                                 onlyRotations=onlyRotations, scaler=scaler, loadDifferences = loadDifferences,
                                                 jump = jump, useQuaternions = useQuaternions)
-
         # isTiny
         if isTiny:
             x = x[:10]
@@ -45,6 +44,7 @@ class lstmDataset(keras.utils.PyDataset):
         self.sequenceSize = sequenceSize
         self.outSequenceSize = outSequenceSize
         self.length = int(totalNumberOfSequences/self.batchSize)
+        print(x)
         self.vectorSize = len(x[0][0])
         print(f"vectorsize: {self.vectorSize}")
         with open(1, "w", closefd=False) as f:
@@ -114,7 +114,8 @@ class lstmDataset(keras.utils.PyDataset):
             sequencedDatasetResults = np.zeros((self.batchSize, self.outSequenceSize, self.vectorSize))
             print("an example has been broken")
 
-        return (np.array(sequencesToReturn), np.array(sequencesLastFrame)), np.array(sequencedDatasetResults)
+        # return (np.array(sequencesToReturn), np.array(sequencesLastFrame)), np.array(sequencedDatasetResults)
+        return np.array(sequencesToReturn), np.array(sequencedDatasetResults)
 
     def __len__(self):
         return self.length

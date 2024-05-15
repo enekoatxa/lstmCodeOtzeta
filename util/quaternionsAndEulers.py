@@ -139,3 +139,20 @@ def separateVectorsSimple(wholeSimpleVector, usingQuaternions = False):
             else:
                 positionsVector.append(wholeSimpleVector[index])
     return rotationsVector, positionsVector
+
+def separateVectorsSimpleForLoss(wholeSimpleVector, usingQuaternions = False):
+    rotationsVector = []
+    positionsVector = []
+    if usingQuaternions:
+        for index in range(0, wholeSimpleVector.shape[1]):
+            if(index<numberOfRotationValuesQuaternions):
+                rotationsVector.append(wholeSimpleVector[index])
+            else:
+                positionsVector.append(wholeSimpleVector[index])
+    else:
+        for index in range(0, wholeSimpleVector.shape[1]):
+            if(index<numberOfRotationValuesEulers):
+                rotationsVector.append(wholeSimpleVector[index])
+            else:
+                positionsVector.append(wholeSimpleVector[index])
+    return rotationsVector, positionsVector

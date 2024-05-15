@@ -17,7 +17,6 @@ import quaternionsAndEulers
 from lstmDataset import lstmDataset
 # import plotly.express as px
 import matplotlib.pyplot as plt
-import scienceplots
 import numpy as np
 from pickle import dump, load
 from keras import backend as K
@@ -25,7 +24,7 @@ from keras import ops
 import math
 
 # choose a number of time steps (sequence size)
-n_steps = 80 # number of frames of the input sequence
+n_steps = 500 # number of frames of the input sequence
 n_steps_out = 1 # number of frames of the output sequence (now I always use 1)
 n_features = 0 # number of features of each input vector (assigned later in code)
 ''' Don't use
@@ -34,18 +33,29 @@ class CustomCallback(keras.callbacks.Callback):
         print(f"{self.model.optimizer.learning_rate}")
         testDifferences("models/callbackModel.keras", 0, self.model)
 '''
+@keras.saving.register_keras_serializable()
 def my_loss_fn(y_true, y_pred):
+    weightRot = 0.9
+    weightPos = 0.1
     # MAE component of the loss function
-    mae = np.abs(y_true - y_pred)
+    # mae = ops.abs(y_true - y_pred)
     # UNITARY QUATERNION component of the loss function
-    y_true_rot, y_true_pos = quaternionsAndEulers.separateVectorsSimple(y_true, usingQuaternions=True)
-    quat_loss = sum(((math.sqrt(y_true_rot[index] ** 2 + y_true_rot[index+1] ** 2 + y_true_rot[index+2] ** 2 + y_true_rot[index+3] ** 2) - 1) ** 2) for index in range(0, len(y_true_rot), 4))
+    # y_true_rot, y_true_pos = quaternionsAndEulers.separateVectorsSimpleForLoss(y_true, usingQuaternions=True)
+    # y_pred_rot, y_pred_pos = quaternionsAndEulers.separateVectorsSimpleForLoss(y_pred, usingQuaternions=True)
+    y_true_rot = y_true[0:127]
+    y_true_pos = y_true[128:224]
+    y_pred_rot = y_pred[0:127]
+    y_pred_pos = y_pred[128:224]
+    mae_rot = ops.abs(y_true_rot - y_pred_rot)
+    mae_pos = ops.abs(y_true_pos - y_pred_pos)
+    # print(y_true_rot[0])
+    # quat_loss = sum(((math.sqrt(y_true_rot[index] ** 2 + y_true_rot[index+1] ** 2 + y_true_rot[index+2] ** 2 + y_true_rot[index+3] ** 2) - 1) ** 2) for index in range(0, len(y_true_rot), 4))
     # quat_loss = 0
     # for index in range(0, len(y_true_rot)):
     #     if(index%4==0):
     #         norm = math.sqrt(y_true_rot[index] ** 2 + y_true_rot[index+1] ** 2 + y_true_rot[index+2] ** 2 + y_true_rot[index+3] ** 2)
     #         quat_loss = (norm - 1) ** 2 
-    return ops.mean(mae, axis=-1) + quat_loss
+    return ops.add(ops.multiply(ops.mean(mae_rot, axis=-1), weightRot), ops.multiply(ops.mean(mae_rot, axis=-1), weightPos))
 '''
 def gaussian_nll(ytrue, ypreds):
     n_dims = int(int(ypreds.shape[1])/2)
@@ -65,21 +75,21 @@ def train(useDifferences, jump):
     ### ORIGINAL TRAINING METHOD: MODELLING VECTORS ###
     ###################################################
     if not useDifferences:
-        # scaler = bvhLoader.createAndFitStandardScaler(datasetName = "silenceDataset3secNoHandsCen")
+        # scaler = bvhLoader.createAndFitStandardScaler(datasetName = "enekoDatasetNoHands")
         # dump(scaler, open("scaler.pkl", "wb"))
-        scaler = load(open("scalerQuaternionCen" + str(jump) + ".pkl", "rb"))
+        scaler = load(open("scalerQuaternionEneko" + str(jump) + ".pkl", "rb"))
     else:
         ##################################################
         ### NEW TRAINING METHOD: MODELLING DIFFERENCES ###
         ##################################################
-        #scaler = bvhLoader.createAndFitStandardScalerForDifferences(datasetName = "silenceDataset3secNoHandsCen")
+        #scaler = bvhLoader.createAndFitStandardScalerForDifferences(datasetName = "enekoDatasetNoHands")
         #dump(scaler, open("scalerDifferences.pkl", "wb"))
         scaler = load(open("scalerDifferencesQuaternion" + str(jump) + ".pkl", "rb"))
         # scalerRot = load(open("scalerDifferences" + str(jump) + "onlyRotations.pkl", "rb"))
 
-    datamodule = lstmDataset(root="/home/bee/Desktop/idle animation generator", batchSize = 128, partition="Train", datasetName = "silenceDataset3secNoHandsCen", 
+    datamodule = lstmDataset(root="/home/bee/Desktop/idle animation generator", batchSize = 128, partition="Train", datasetName = "enekoDatasetNoHands", 
                              sequenceSize = n_steps, trim=False, verbose=True, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = useDifferences, jump = jump, useQuaternions = True)
-    datamoduleVal = lstmDataset(root="/home/bee/Desktop/idle animation generator", batchSize = 128, partition="Validation", datasetName = "silenceDataset3secNoHandsCen", 
+    datamoduleVal = lstmDataset(root="/home/bee/Desktop/idle animation generator", batchSize = 128, partition="Validation", datasetName = "enekoDatasetNoHands", 
                              sequenceSize = n_steps, trim=False, verbose=True, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = useDifferences, jump = jump, useQuaternions = True)
     
     global n_features
@@ -88,17 +98,19 @@ def train(useDifferences, jump):
     # DEFINE THE MODEL #
     ####################
     learning_rate = 0.0001
+    '''
     # MODELO HONEK SKIP CONNECTIONA INPLEMENTATZEN DU
     input = keras.Input(shape=(80, n_features))
     inputSingle = keras.Input(shape=(1, n_features))
-    lstm1 = LSTM(1000, activation = 'tanh', return_sequences = True, dropout = 0.4, recurrent_dropout = 0.4)(input)
-    lstm2 = LSTM(1000, activation = 'tanh', return_sequences = False, dropout = 0.4, recurrent_dropout = 0.4)(lstm1)
-    dense = Dense(n_features)(lstm2)
+    lstm1 = LSTM(1000, activation = 'tanh', return_sequences = False, dropout = 0.4, recurrent_dropout = 0.4)(input)
+    # lstm2 = LSTM(1000, activation = 'tanh', return_sequences = False, dropout = 0.4, recurrent_dropout = 0.4)(lstm1)
+    dense = Dense(n_features)(lstm1)
     output = Add()([dense, inputSingle])
     opt = Adam(learning_rate=learning_rate, clipnorm = 0.01)
     model = keras.Model(inputs=[input, inputSingle], outputs=output, name="skip_connection_model")
     model.compile(optimizer=opt, loss='mae')
     model.summary()
+    '''
     ''' MODELO HONEK BETI EMAITZA BERDINA EMATEN DU
     model = Sequential()
     model.add(Dense(100, input_shape=(n_steps, n_features), activation="relu"))
@@ -113,7 +125,7 @@ def train(useDifferences, jump):
     model.compile(optimizer=opt, loss='mae')
     model.summary()
     '''
-    '''
+    
     # MODELO HONEK FUNTZIONATU DU
     # Model that doesn't use the time distributed layer (generates 1 output vector). Test it with the test() function
     model = Sequential()
@@ -122,13 +134,12 @@ def train(useDifferences, jump):
     model.add(Dense(n_features))
     opt = Adam(learning_rate=learning_rate, clipnorm = 0.01)
     # opt = SGD(learning_rate=learning_rate)
-    model.compile(optimizer=opt, loss='mae')
+    model.compile(optimizer=opt, loss="mae")
     model.summary()
-    '''
-
+    
     history = model.fit(datamodule, validation_data=datamoduleVal, epochs=100, verbose=1)#, callbacks = [CustomCallback()])
     
-    model.save("models/DatasetSkipConn" + str(jump) + ".keras")
+    model.save("models/DatasetEnekoLongSeq" + str(jump) + ".keras")
 
     # save the training variables in a plot
     plt.plot(history.history['loss'])
@@ -155,7 +166,7 @@ def testDifferences(modelName, jump, preparedModel):
         model = preparedModel
     scalerEuler = load(open("scalerDifferencesEuler" + str(jump) + ".pkl", "rb"))
     scalerQuaternion = load(open("scalerDifferencesQuaternion" + str(jump) + ".pkl", "rb"))
-    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1, trim=False, scaler=scalerEuler, loadDifferences = True, jump=jump, useQuaternions = False,  reorderVectors = True)
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1, trim=False, scaler=scalerEuler, loadDifferences = True, jump=jump, useQuaternions = False,  reorderVectors = True)
     finalOutput = []
     x_input = x_input[0]
     newx_input = []
@@ -211,7 +222,7 @@ def testDifferences(modelName, jump, preparedModel):
     for index in range(0, len(finalOutput)):
         intermediateRotation, intermediatePosition = quaternionsAndEulers.separateVectorsSimple(finalOutput[index], usingQuaternions = True)
         intermediateRotation = quaternionsAndEulers.fromQuaternionToEulerVector(intermediateRotation)
-        finalEulerOutput.append(quaternionsAndEulers.glueVectors(intermediateRotation, intermediatePosition, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/silenceDataset3secNoHandsCen/genea2023_trn/genea2023_dataset/trn/interloctr/bvh/trn_2023_v0_000_interloctr_silence_0.bvh"))
+        finalEulerOutput.append(quaternionsAndEulers.glueVectors(intermediateRotation, intermediatePosition, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/enekoDatasetNoHands/trn/000_idle.bvh"))
 
     with open("resultBvhs/" + modelName.split(".")[0].split("/")[1] + ".bvh", "w") as f:
         for line in finalEulerOutput:
@@ -228,7 +239,7 @@ def testDifferencesMultiple(modelName):
     # demonstrate prediction
     model = load_model(modelName) # "models/multipleLSTMNoLimbsOneFrame.keras"
     scaler = load(open("scalerDifferencesEuler.pkl", "rb"))
-    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Validation", verbose=True, specificSize=200, trim=True, sequenceSize=n_steps, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = True, useQuaternions = True)
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, specificSize=200, trim=True, sequenceSize=n_steps, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = True, useQuaternions = True)
     #######################
     # predict the changes #
     #######################
@@ -261,16 +272,17 @@ def test(modelName, preparedModel = None):
         model = load_model(modelName)
     else:
         model = preparedModel
-    scalerEuler = load(open("scalerEulerCen0.pkl", "rb"))
-    scalerQuaternion = load(open("scalerQuaternionCen0.pkl", "rb"))
-    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Train", verbose=True, specificSize=40, trim=False, sequenceSize=n_steps, scaler=scalerQuaternion, useQuaternions = True, loadDifferences = False, reorderVectors = True)
+    scalerEuler = load(open("scalerEulerEneko0.pkl", "rb"))
+    scalerQuaternion = load(open("scalerQuaternionEneko0.pkl", "rb"))
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, specificSize=15, trim=False, sequenceSize=n_steps, scaler=scalerQuaternion, useQuaternions = True, loadDifferences = False, reorderVectors = True)
     print(len(x_input))
-    x_input = x_input[3000]
+    x_input = x_input[15000]
 
     # if n_features is not set, set it using the quaternions + positions size
     global n_features
     if(n_features == 0):
         n_features = len(x_input[0])
+        print(f"n_features {n_features}")
     x_input = x_input.reshape((1, n_steps, n_features))
     newX = model.predict(x_input, verbose=0)
     finalOutput = []
@@ -279,6 +291,7 @@ def test(modelName, preparedModel = None):
     # prediction loop
     steps = 1000
     for step in range(0, steps-1):
+        print(step)
         x_input = x_input.reshape(n_steps, n_features)
         x_input = np.append(x_input, newX, axis=0)
         x_input = np.delete(x_input, 0, axis=0)
@@ -292,9 +305,103 @@ def test(modelName, preparedModel = None):
     for vector in finalOutput:
         rotVec, posVec = quaternionsAndEulers.separateVectorsSimple(vector, usingQuaternions = True)
         rotVec = quaternionsAndEulers.fromQuaternionToEulerVector(rotVec)
-        finalOutputOrdered.append(quaternionsAndEulers.glueVectors(rotVec, posVec, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/silenceDataset3secNoHandsCen/genea2023_trn/genea2023_dataset/trn/interloctr/bvh/trn_2023_v0_000_interloctr_silence_0.bvh"))
+        finalOutputOrdered.append(quaternionsAndEulers.glueVectors(rotVec, posVec, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/enekoDatasetNoHands/trn/000_idle.bvh"))
+        # lastVector = rotVec[0:3] + posVec[0:3] + rotVec[3:]
+        # finalOutputOrdered.append(lastVector)
 
-    with open("resultBvhs/noDifferencesTestEncDecGood.bvh", "w") as f:
+    with open("resultBvhs/noDifferencesOnlyRotations.bvh", "w") as f:
+        for line in finalOutputOrdered:
+            f.write(str(line).replace("[", "").replace("]", "").replace(",", ""))
+            f.write("\n")
+        # f.write(str(newX.tolist()).replace("[", "").replace("]", "").replace(",", ""))
+        f.close
+
+def testQuaternionLengths(modelName, preparedModel = None):
+    # demonstrate prediction
+    if(modelName!="models/callbackModel.keras"):
+        model = load_model(modelName)
+    else:
+        model = preparedModel
+    scalerEuler = load(open("scalerEulerEneko0.pkl", "rb"))
+    scalerQuaternion = load(open("scalerQuaternionEneko0.pkl", "rb"))
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, specificSize=40, trim=False, sequenceSize=n_steps, scaler=scalerQuaternion, useQuaternions = True, loadDifferences = False, reorderVectors = True)
+    print(len(x_input))
+    x_input = x_input[0]
+
+    # if n_features is not set, set it using the quaternions + positions size
+    global n_features
+    if(n_features == 0):
+        n_features = len(x_input[0])
+    x_input = x_input.reshape((1, n_steps, n_features))
+    newX = model.predict(x_input, verbose=0)
+    finalOutput = []
+    finalOutput = np.append(x_input[0], newX, axis=0)
+    
+    # prediction loop
+    steps = 500
+    for step in range(0, steps-1):
+        print(step)
+        x_input = x_input.reshape(n_steps, n_features)
+        x_input = np.append(x_input, newX, axis=0)
+        x_input = np.delete(x_input, 0, axis=0)
+        x_input = x_input.reshape((1, n_steps, n_features))
+        newX = model.predict(x_input, verbose=0)
+        finalOutput = np.append(finalOutput, newX, axis=0)
+    finalOutput = scalerQuaternion.inverse_transform(finalOutput)
+    
+    finalOutputOrdered = []
+    #reorder the vectors
+    counter = 0
+    for vector in finalOutput:
+        rotVec, posVec = quaternionsAndEulers.separateVectorsSimple(vector, usingQuaternions = True)
+        # rotVec = quaternionsAndEulers.fromQuaternionToEulerVector(rotVec)
+        print(f"Vector: {counter}")
+        counter +=1
+        for index in range(0, len(rotVec), 4):
+            print(f"The quaternion is: {rotVec[index]}, {rotVec[index+1]}, {rotVec[index+2]}, {rotVec[index+3]}")
+            print(f"The length of the quaternion is: {np.linalg.norm([rotVec[index],rotVec[index+1],rotVec[index+2],rotVec[index+3]])}")
+
+def testSkipConn(modelName, jump=0, preparedModel = None):
+    # demonstrate prediction
+    if(modelName!="models/callbackModel.keras"):
+        model = load_model(modelName)
+    else:
+        model = preparedModel
+    scalerEuler = load(open("scalerEulerEneko0.pkl", "rb"))
+    scalerQuaternion = load(open("scalerQuaternionEneko0.pkl", "rb"))
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, specificSize=40, trim=False, sequenceSize=n_steps, scaler=scalerQuaternion, useQuaternions = True, loadDifferences = False, reorderVectors = True, jump=jump)
+    print(len(x_input))
+    x_input = x_input[0]
+
+    # if n_features is not set, set it using the quaternions + positions size
+    global n_features
+    if(n_features == 0):
+        n_features = len(x_input[0])
+    x_input = x_input.reshape((1, n_steps, n_features))
+    newX = model.predict((x_input, x_input[0][-1].reshape(1, 1, n_features)), verbose=0)
+    finalOutput = []
+    finalOutput = np.append(x_input[0], newX.reshape((1, n_features)), axis=0)
+    
+    # prediction loop
+    steps = 1000
+    for step in range(0, steps-1):
+        print(step)
+        x_input = x_input.reshape(n_steps, n_features)
+        x_input = np.append(x_input, newX.reshape((1, n_features)), axis=0)
+        x_input = np.delete(x_input, 0, axis=0)
+        x_input = x_input.reshape((1, n_steps, n_features))
+        newX = model.predict((x_input, x_input[0][-1].reshape(1, 1, n_features)), verbose=0)
+        finalOutput = np.append(finalOutput, newX.reshape((1, n_features)), axis=0)
+    finalOutput = scalerQuaternion.inverse_transform(finalOutput)
+    
+    finalOutputOrdered = []
+    #reorder the vectors
+    for vector in finalOutput:
+        rotVec, posVec = quaternionsAndEulers.separateVectorsSimple(vector, usingQuaternions = True)
+        rotVec = quaternionsAndEulers.fromQuaternionToEulerVector(rotVec)
+        finalOutputOrdered.append(quaternionsAndEulers.glueVectors(rotVec, posVec, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/enekoDatasetNoHands/trn/000_idle.bvh"))
+
+    with open("resultBvhs/noDifferencesTestSkipConn.bvh", "w") as f:
         for line in finalOutputOrdered:
             f.write(str(line).replace("[", "").replace("]", "").replace(",", ""))
             f.write("\n")
@@ -311,7 +418,7 @@ def testMultiple(modelName):
     # demonstrate prediction
     model = load_model(modelName) # "models/multipleLSTMNoLimbsOneFrame.keras"
     scaler = load(open("scaler.pkl", "rb"))
-    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Validation", verbose=True, specificSize=200, trim=True, sequenceSize=n_steps, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = False)
+    x_input, y, firstPersonPositions, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, specificSize=200, trim=True, sequenceSize=n_steps, outSequenceSize=n_steps_out, scaler = scaler, loadDifferences = False)
     #########################
     # predict the positions #
     #########################
@@ -355,8 +462,8 @@ def testDifferencesAnglesAndPositions(modelNamePos, modelNameRot, jump):
     modelRot = load_model(modelNameRot) # "models/singleLSTMNoLimbsOneFrame.keras"
     scalerPos = load(open("scalerDifferences" + str(jump) + "onlyPositions.pkl", "rb"))
     scalerRot = load(open("scalerDifferences" + str(jump) + "onlyRotations.pkl", "rb"))
-    x_input_pos, y, firstPersonPositions_pos, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1000, trim=False, scaler=scalerPos, onlyPositions=True, loadDifferences = True, jump=jump)
-    x_input_rot, y, firstPersonPositions_rot, ids = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1000, trim=False, scaler=scalerRot, onlyRotations=True, loadDifferences = True, jump=jump)
+    x_input_pos, y, firstPersonPositions_pos, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1000, trim=False, scaler=scalerPos, onlyPositions=True, loadDifferences = True, jump=jump)
+    x_input_rot, y, firstPersonPositions_rot, ids = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Train", verbose=True, sequenceSize = n_steps, specificSize=1000, trim=False, scaler=scalerRot, onlyRotations=True, loadDifferences = True, jump=jump)
     x_input_pos = x_input_pos[100]
     x_input_rot = x_input_rot[100]
     x_input_pos = scalerPos.inverse_transform(x_input_pos)
@@ -418,7 +525,7 @@ def testDifferencesAnglesAndPositions(modelNamePos, modelNameRot, jump):
 # method to check if the data is loading correctly
 def checkDatamodule():
     # convert into input/output
-    datamodule = lstmDataset(root="/home/bee/Desktop/idle animation generator", isTiny = False, batchSize= 56, partition="Train", datasetName = "silenceDataset3secNoHandsCen", 
+    datamodule = lstmDataset(root="/home/bee/Desktop/idle animation generator", isTiny = False, batchSize= 56, partition="Train", datasetName = "enekoDatasetNoHands", 
                              sequenceSize = n_steps, trim=False, specificSize=10, verbose=True, outSequenceSize=n_steps_out, loadDifferences=True)
     
     print(f"{len(datamodule[0][0][0])}")
@@ -447,19 +554,19 @@ def visualizeWeights():
     weights = layer.get_weights()
     print(f"{weights}")
 
-def prepareScalerForJump(jump, extraInfo, datasetName = "silenceDataset3secNoHandsCen"):
+def prepareScalerForJump(jump, extraInfo, datasetName = "enekoDatasetNoHands"):
     onlyPos = extraInfo=="onlyPositions"
     onlyRot = extraInfo=="onlyRotations"
     scalerQuaternion = bvhLoader.createAndFitStandardScaler(datasetName = datasetName, jump=jump, onlyPositions=onlyPos, onlyRotations=onlyRot, useQuaternions = True, reorderVectors = True)
-    dump(scalerQuaternion, open(f"scalerQuaternionCen{jump}{extraInfo}.pkl", "wb"))
+    dump(scalerQuaternion, open(f"scalerQuaternionEneko{jump}{extraInfo}.pkl", "wb"))
     scalerEuler = bvhLoader.createAndFitStandardScaler(datasetName = datasetName, jump=jump, onlyPositions=onlyPos, onlyRotations=onlyRot, useQuaternions = False, reorderVectors = True)
-    dump(scalerEuler, open(f"scalerEulerCen{jump}{extraInfo}.pkl", "wb"))
+    dump(scalerEuler, open(f"scalerEulerEneko{jump}{extraInfo}.pkl", "wb"))
 
 # def testTheScalerEulerAndQuaternionConversion():
 #     scalerEuler = load(open("scalerDifferencesEuler0.pkl", "rb"))
 #     scalerQuaternion = load(open("scalerDifferencesQuaternion0.pkl", "rb"))
-#     dataPointQuaternionUnscaled, datasetYQuaternion, firstPersonFramesQuaternion, sequencedIdsQuaternion = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Validation", verbose=True, sequenceSize = n_steps, specificSize=10, trim=False, loadDifferences = True, jump=0, useQuaternions = True, reorderVectors = True)
-#     dataPointEulerUnscaled, datasetYEuler, firstPersonFramesEuler, sequencedIdsEuler = bvhLoader.loadSequenceDataset(datasetName="silenceDataset3secNoHandsCen", partition="Validation", verbose=True, sequenceSize = n_steps, specificSize=10, trim=False, loadDifferences = True, jump=0, useQuaternions = False, reorderVectors = True)
+#     dataPointQuaternionUnscaled, datasetYQuaternion, firstPersonFramesQuaternion, sequencedIdsQuaternion = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, sequenceSize = n_steps, specificSize=10, trim=False, loadDifferences = True, jump=0, useQuaternions = True, reorderVectors = True)
+#     dataPointEulerUnscaled, datasetYEuler, firstPersonFramesEuler, sequencedIdsEuler = bvhLoader.loadSequenceDataset(datasetName="enekoDatasetNoHands", partition="Validation", verbose=True, sequenceSize = n_steps, specificSize=10, trim=False, loadDifferences = True, jump=0, useQuaternions = False, reorderVectors = True)
     
 #     printVectors = []
 #     for vector in dataPointQuaternionUnscaled[0]:
@@ -469,7 +576,7 @@ def prepareScalerForJump(jump, extraInfo, datasetName = "silenceDataset3secNoHan
 #         print(vector)
 #         rotVec, posVec = quaternionsAndEulers.separateVectorsSimple(vector, usingQuaternions = True)
 #         rotVec = quaternionsAndEulers.fromQuaternionToEulerVector(rotVec)
-#         printVectors.append(quaternionsAndEulers.glueVectors(rotVec, posVec, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/silenceDataset3secNoHandsCen/genea2023_trn/genea2023_dataset/trn/interloctr/bvh/trn_2023_v0_000_interloctr_silence_0.bvh"))
+#         printVectors.append(quaternionsAndEulers.glueVectors(rotVec, posVec, vectorHeaderPath = "/home/bee/Desktop/idle animation generator/enekoDatasetNoHands/trn/000_idle.bvh"))
 
 #     printVectorsOrdered = []
 #     lastVec = firstPersonFramesEuler[0]
@@ -486,15 +593,15 @@ def prepareScalerForJump(jump, extraInfo, datasetName = "silenceDataset3secNoHan
 
 if __name__ == "__main__":
     # create the standard scaler specifically for the data that we are going to use (just execute once)     
-    # prepareScalerForJump(0, "", "silenceDataset3secNoHandsCen")
+    # prepareScalerForJump(jump=0, datasetName="enekoDatasetNoHands", extraInfo="")
     # train the model
     train(useDifferences = False, jump=0)
     # test the model
-    test("models/DatasetSkipConn0.keras", preparedModel=None)
+    # testSkipConn("models/DatasetShort0.keras", jump=0, preparedModel=None)
     # ALL THESE METHODS ARE COMMENTED (I've used them during development to test many things and to make the inference in many ways)
-    # testDifferencesAnglesAndPositions("models/differencesNoLimbsOneFramePosJump0.keras","models/differencesNoLimbsOneFrameRotJump0.keras", jump=0)
-    # testDifferences("models/differencesDatasetEneko0.keras", jump=0, preparedModel=None)
-    # test("models/differencesDataset0.keras")
+    # testDifferences("models/differencesDatasetEnekoLongSeq0.keras", jump=0, preparedModel=None)
+    test("models/DatasetEnekoLongSeq0.keras")
+    # testQuaternionLengths("models/DatasetWeightedLoss0.keras")
     # test("models/originalModel.keras")
     # checkNetwork()
     # visualizeWeights()

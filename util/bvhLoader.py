@@ -57,10 +57,10 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
         ### DATA ###
         # read all the rotation data to a list
         data = []
-        line = f.readline().replace("\n", "")
+        line = f.readline().rstrip().replace("\n", "")
         counter = 0
         while True:
-            data.append(line.split(" "))
+            data.append(line.rstrip().split(" "))
             line = f.readline().replace("\n", "")
             counter+=1
             # jumping lines
@@ -79,9 +79,9 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
         rotationData.append(rotation.copy())
         positionData.append(position.copy())
 
-    # setup the quaternionsAndEulers global variables by sticking together two vectors wiwth the correct sizes # VERY VERY IMPORTANT
-    quaternionsAndEulers.concatenateVectorsSimple(rotationData[0], positionData[0], usingQuaternions = False)
-    quaternionsAndEulers.concatenateVectorsSimple(quaternionsAndEulers.fromEulerToQuaternionVector(rotationData[0]), positionData[0], usingQuaternions = True)
+    # setup the quaternionsAndEulers global variables by sticking together two vectors with the correct sizes # VERY VERY IMPORTANT [0:2 is for only rot]
+    quaternionsAndEulers.concatenateVectorsSimple(rotationData[0], positionData[0][0:2], usingQuaternions = False)
+    quaternionsAndEulers.concatenateVectorsSimple(quaternionsAndEulers.fromEulerToQuaternionVector(rotationData[0]), positionData[0][0:2], usingQuaternions = True)
 
     # convert the angles vector to quaternions if wanted
     if(useQuaternions):
@@ -97,8 +97,9 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
         data = positionData
             
     if onlyRotations:
-        data = rotationData
-    
+        for index in range(0, len(data)):
+            data[index] = quaternionsAndEulers.concatenateVectorsSimple(rotationsVector=rotationData[index], positionsVector=positionData[index][0:3], usingQuaternions=useQuaternions)
+
     data = np.asanyarray(data)
     if returnHeader and returnData:
         if returnCounter:
@@ -128,9 +129,9 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
     if partition=="All":
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/"
     if partition=="Train":
-        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/genea2023_trn"
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/trn"
     if partition=="Validation":
-        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/genea2023_val"
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/val"
     for root, dirs, files in os.walk(path):
         for filename in files:
             if specificSize!=-1 and idPerson>=specificSize:
@@ -197,9 +198,9 @@ def loadDatasetInBulk(datasetName, partition = "All", specificSize=-1, verbose =
     if partition=="All":
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/"
     if partition=="Train":
-        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/genea2023_trn"
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/trn"
     if partition=="Validation":
-        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/genea2023_val"
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/val"
     counter = 0
     for root, dirs, files in os.walk(path):
         for filename in files:
