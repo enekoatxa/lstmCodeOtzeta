@@ -36,7 +36,7 @@ def calculatePositionIndexesFromHeader(path):
 
 # reads a bvh file and separates the data from the header. Returns the header if needed, else returns only the data in a list. Can also return just the header.
 # each row of the list contains a number of joint rotations. It also returns the number of frames loaded
-def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter = True, 
+def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter = True, returnMask = False,
                   onlyPositions = False, onlyRotations = False, jump = 0, useQuaternions=False,
                   reorderVectors = True):
     ### HEADER ###
@@ -52,7 +52,7 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
         # header += line.split("\n")[0]
         header += line
         # if we only want the header, break the method
-        if returnHeader and not returnData and not returnCounter:
+        if returnHeader and not returnData and not returnCounter and not returnMask:
             return header
         ### DATA ###
         # read all the rotation data to a list
@@ -79,9 +79,16 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
         rotationData.append(rotation.copy())
         positionData.append(position.copy())
 
+    # create the mask
+    mask = np.zeros(len(positionData))
+    with open("test.txt", "w") as f:
+        for i in range(0, len(positionData)):
+            if(np.linalg.norm(np.array([positionData[i][0], positionData[i][2]])) < 0.1):
+                mask[i] = 1
+
     # setup the quaternionsAndEulers global variables by sticking together two vectors with the correct sizes # VERY VERY IMPORTANT [0:2 is for only rot]
-    quaternionsAndEulers.concatenateVectorsSimple(rotationData[0], positionData[0][0:2], usingQuaternions = False)
-    quaternionsAndEulers.concatenateVectorsSimple(quaternionsAndEulers.fromEulerToQuaternionVector(rotationData[0]), positionData[0][0:2], usingQuaternions = True)
+    quaternionsAndEulers.concatenateVectorsSimple(rotationData[0], positionData[0][0:3], usingQuaternions = False)
+    quaternionsAndEulers.concatenateVectorsSimple(quaternionsAndEulers.fromEulerToQuaternionVector(rotationData[0]), positionData[0][0:3], usingQuaternions = True)
 
     # convert the angles vector to quaternions if wanted
     if(useQuaternions):
@@ -101,6 +108,10 @@ def loadBvhToList(path, returnHeader = False, returnData = True, returnCounter =
             data[index] = quaternionsAndEulers.concatenateVectorsSimple(rotationsVector=rotationData[index], positionsVector=positionData[index][0:3], usingQuaternions=useQuaternions)
 
     data = np.asanyarray(data)
+    # special case that returns the mask
+    if returnMask:
+       return header, data, mask, counter
+    
     if returnHeader and returnData:
         if returnCounter:
             return header, data, counter
@@ -127,11 +138,13 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
     idPerson = 0
     finalTrimSize = 999999999999999
     if partition=="All":
-        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/"
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/idle"
     if partition=="Train":
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/trn"
     if partition=="Validation":
         path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/val"
+    if partition=="Idle":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/idle"
     for root, dirs, files in os.walk(path):
         for filename in files:
             if specificSize!=-1 and idPerson>=specificSize:
@@ -190,6 +203,45 @@ def loadDataset(datasetName, partition = "All", specificSize=-1, verbose = False
     firstPersonPositions = []
 
     return allData, firstPersonPositions, np.asarray(allIds)
+
+def loadDatasetForBlendingApp(datasetName, partition = "All", specificSize=-1, verbose = False,
+                onlyPositions = False, onlyRotations = False, scaler = None, returnData = True, returnHeader = False, returnMask = False, returnCounter=False,
+                jump = 0, useQuaternions = False, reorderVectors = True):
+    allData = []
+    allIds = []
+    allMasks = []
+    allHeaders = []
+    allNames = []
+    idPerson = 0
+    if partition=="All":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/"
+    if partition=="Idle":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/idle"
+    if partition=="Idle2":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/idle2"
+    if partition=="Actions":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/actionsSeparated"
+    if partition=="Phone":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/phone"
+    if partition=="Lookback":
+        path = "/home/bee/Desktop/idle animation generator/" + datasetName + "/lookback"
+    for root, dirs, files in os.walk(path):
+        for filename in files:
+            if specificSize!=-1 and idPerson>=specificSize:
+                    break
+            if verbose:
+                print(f"Loading file: {filename}")
+            if(os.path.splitext(filename)[1].lower()==".bvh"):
+                
+                bvhHeader, bvhData, bvhMask, bvhCounter = loadBvhToList(os.path.join(root, filename), onlyPositions=onlyPositions, onlyRotations=onlyRotations, returnHeader=returnHeader, returnCounter=returnCounter, returnData=returnData, returnMask=returnMask, jump=jump, useQuaternions=useQuaternions, reorderVectors=reorderVectors)
+                allNames.append(filename)
+                if(returnData): allData.append(bvhData)
+                if (returnCounter): allIds.append(idPerson)
+                if (returnMask): allMasks.append(bvhMask)
+                if(returnHeader): allHeaders.append(bvhHeader)
+                idPerson+=1
+
+    return allNames, allHeaders, allData, allMasks, np.asarray(allIds)
 
 # loads the specified bvh dataset, and the partition can also be specified
 # the data is loaded in bulk, no difference between different frames or people, just a list of all the vectors
@@ -297,7 +349,6 @@ def loadSequenceDataset(datasetName, partition = "All", specificSize = -1, verbo
                                                    trim=trim, specificTrim=specificTrim, onlyPositions=onlyPositions, onlyRotations=onlyRotations,
                                                     loadDifferences=loadDifferences, jump=jump, useQuaternions=useQuaternions, 
                                                     reorderVectors=reorderVectors, scaler=scaler)
-
     
     # create the sequences and results
     datasetX, datasetY, sequencedIds = createSequenceFromFataset(dataset=dataset, ids=ids, sequenceSize=sequenceSize, outSequenceSize=outSequenceSize)

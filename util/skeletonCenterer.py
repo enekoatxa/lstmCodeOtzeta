@@ -122,9 +122,9 @@ if __name__ == "__main__":
             header, data = bvhLoader.loadBvhToList(bvhFilename, returnHeader=True, returnData=True, returnCounter=False, reorderVectors=False)
             firstVector = data [0].copy()
             for vector in data:
-                vector[0] = vector[0] - firstVector[0]
+                #vector[0] = vector[0] - firstVector[0]
                 vector[1] = vector[1] - firstVector[1]
-                vector[2] = vector[2] - firstVector[2]
+                #vector[2] = vector[2] - firstVector[2]
 
             with open(writeBvhFilename, "w") as f:
                 f.write(header)
